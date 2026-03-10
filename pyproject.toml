@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "graph-rag-poc"
+version = "0.1.0"
+description = "Core ML utilities for Graph RAG POC"
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+license = { text = "MIT" }
+
+authors = [
+    { name = "Tanul Kumar Srivastava" }
+]
+
+dependencies = [
+    "numpy == 1.26.4",
+    "pandas == 2.2.2",
+    "langgraph >= 0.2.0, < 0.3.0",
+    "langchain >= 0.2.0, < 0.3.0",
+    "python-dotenv == 1.0.1",
+    "langchain-community >= 0.2.0, < 0.3.0",
+    "langchain-ollama == 0.1.3",
+    "tqdm == 4.67.3",
+    "pypdf==4.2.0"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["core*"]
