@@ -1,7 +1,9 @@
 import os
 import json
 import pickle
+import threading
 import subprocess
+from tqdm import tqdm
 from typing import Final
 from pathlib import Path
 from core.prompt import *
@@ -10,17 +12,14 @@ from typing import List, Dict, Any
 from pydantic import BaseModel, Field
 from core.logging import LoggerFactory
 from langchain_ollama import ChatOllama
-
 from concurrent.futures import ThreadPoolExecutor
-from tqdm import tqdm
-import threading
 
 logger = LoggerFactory().get_logger(__name__)
 
 BASE_DIR: Final[Path] = Path(__file__).resolve().parent.parent
 ENV_PATH: Final[Path] = BASE_DIR / ".env.poc"
 CHUNK_SAVE_PATH: Final[Path] = BASE_DIR / "dataset" / "chunks.pkl"
-KG_SAVE_PATH: Final[Path] = BASE_DIR / "dataset" / "extracted_kg.jsonl"
+KG_SAVE_PATH: Final[Path] = BASE_DIR / "dataset" / "extracted-kg.jsonl"
 
 load_dotenv(dotenv_path=ENV_PATH)
 logger.info("Environment variables loaded from .env.poc")
