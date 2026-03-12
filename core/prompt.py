@@ -1,3 +1,4 @@
+from typing import List
 class SystemPrompt:
     system_prompt = """
 ====SYSTEM PROMPT====
@@ -243,6 +244,27 @@ causes
 observes
 related_to
 
+-------------------------------------------------------------------
+STRICTLY FOLLOW THE BELOW PYDANTIC OUTPUT STRUCTURE FOR RESPONSE
+-------------------------------------------------------------------
+
+class Node(BaseModel):
+    id: str = Field(..., description="Unique identifier of the entity")
+    type: str = Field(..., description="Type of the entity")
+    properties: Dict[str, Any] = Field(default_factory=dict)
+
+
+class Relationship(BaseModel):
+    source: str = Field(..., description="Source node id")
+    target: str = Field(..., description="Target node id")
+    type: str = Field(..., description="Relationship type")
+    properties: Dict[str, Any] = Field(default_factory=dict)
+
+
+class GraphResponse(BaseModel):
+    nodes: List[Node]
+    relationships: List[Relationship]
+
 --------------------------------
 FINAL RULE
 --------------------------------
@@ -252,28 +274,80 @@ do not include explanations or additional text.
 """
 
 class UserPrompt:
-    def __init__(self, chunk: str = None):
+    def __init__(self, chunk: str = None, previous_chunks: List[str] = None):
         self.chunk = chunk
-    
+        self.previous_chunks = previous_chunks or []
+
     def get_prompt(self):
+
+        context_section = ""
+        if len(self.previous_chunks) > 0:
+            context_section = f"""
+CONTEXT (previous chunks for background only):
+{self.previous_chunks}
+
+IMPORTANT:
+Use this context ONLY to help understand references such as names, pronouns, or entities.
+DO NOT extract nodes or relationships from the context section.
+"""
+
         return f"""====USER PROMPT====
+
 Extract a knowledge graph from the following narrative text chunk from a short story.
 
-Identify:
-- Characters
-- Locations
-- Objects
-- Events
-- Interactions between characters
-- Relationships between entities
+You must identify entities and relationships ONLY from the CURRENT CHUNK.
 
-Only extract information explicitly stated in the text.
+Entities may include:
+- characters
+- locations
+- objects
+- events
+- concepts
 
-TEXT CHUNK:
+Relationships may include:
+- interactions between characters
+- ownership or usage of objects
+- location relationships
+- participation in events
+
+IMPORTANT RULES:
+
+1. Extract knowledge ONLY from the CURRENT CHUNK.
+2. The CONTEXT section (if provided) is for background understanding only.
+3. DO NOT create nodes or relationships based on the context alone.
+4. Only include facts explicitly stated in the CURRENT CHUNK.
+5. Prefer previously seen entity names from the CONTEXT section when referring to the same entity.
+
+--------------------------------
+
+CURRENT CHUNK:
 {self.chunk}
 
+{context_section}
+
+--------------------------------
+
 Return ONLY valid JSON following the schema defined in the system prompt.
-Do not include explanations or additional text.
+
+Do not include explanations or any text outside the JSON.
+
+STRICTLY FOLLOW THE BELOW PYDANTIC OUTPUT STRUCTURE FOR RESPONSE:
+class Node(BaseModel):
+    id: str = Field(..., description="Unique identifier of the entity")
+    type: str = Field(..., description="Type of the entity")
+    properties: Dict[str, Any] = Field(default_factory=dict)
+
+
+class Relationship(BaseModel):
+    source: str = Field(..., description="Source node id")
+    target: str = Field(..., description="Target node id")
+    type: str = Field(..., description="Relationship type")
+    properties: Dict[str, Any] = Field(default_factory=dict)
+
+
+class GraphResponse(BaseModel):
+    nodes: List[Node]
+    relationships: List[Relationship]
 """
     
 class SystemPromptFinance:

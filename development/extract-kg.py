@@ -57,10 +57,10 @@ class ServeOllama:
         self.process.kill()
         logger.info("Killing Ollama serve")
 
-    def get_kg(self, content_chunk: str = None, chunk_id: int = None):
+    def get_kg(self, content_chunk: str = None, chunk_id: int = None, previous_chunks: List[str] = None):
         prompt = f"""
                     {SystemPrompt.system_prompt}
-                    {UserPrompt(chunk=content_chunk).get_prompt()}"""
+                    {UserPrompt(chunk=content_chunk, previous_chunks=previous_chunks).get_prompt()}"""
 
         response = self.llm.invoke(prompt)
 
@@ -86,7 +86,14 @@ if __name__ == "__main__":
 
         logger.info(f"Processing chunk_id - {chunk_id}")
 
-        response = llm.get_kg(chunk_id=chunk_id, content_chunk=chunk)
+        prev_chunks = []
+        if chunk_id - 1 >= 0: prev_chunks.append(chunks[chunk_id - 1])
+        if chunk_id - 2 >= 0: prev_chunks.append(chunks[chunk_id - 2])
+        if len(prev_chunks) == 2: logger.info("Two chunks extracted for context")
+        elif len(prev_chunks) == 1: logger.info("Single chunk extracted for context")
+        else: logger.info("No previous chunks for context")
+
+        response = llm.get_kg(chunk_id=chunk_id, content_chunk=chunk, previous_chunks=prev_chunks)
 
         record = {
             "chunk_id": chunk_id,
