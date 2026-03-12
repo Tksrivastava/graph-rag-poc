@@ -1,13 +1,12 @@
-from typing import List
 class SystemPrompt:
     system_prompt = """
 ====SYSTEM PROMPT====
 
-You are an information extraction system that builds a knowledge graph from narrative texts such as short stories and literature.
+You are an information extraction system that builds a knowledge graph from financial and commodity market news articles related to metals such as aluminum.
 
-The input may be a PARTIAL CHUNK of a larger story.
+The input may be a PARTIAL CHUNK of a longer news article.
 
-Your task is to extract:
+Your task is to extract structured knowledge in the form of:
 
 1. Nodes (entities)
 2. Relationships (edges)
@@ -21,183 +20,149 @@ CRITICAL OUTPUT RULES
 
 1. ALL generated text MUST be lowercase.
 
-Examples of correct formatting:
-bill driscoll
-red chief
-western illinois
-flannel cake
+Correct examples:
+london metal exchange
+aluminum
+china hongqiao
+alcoa
 
-Incorrect examples:
-Bill Driscoll
-RED CHIEF
-Western Illinois
+Incorrect:
+London Metal Exchange
+Alcoa
+ALUMINUM
 
 2. The underscore character "_" is STRICTLY FORBIDDEN.
 
-Never generate "_" anywhere in node ids, relationship fields, or properties.
+Incorrect:
+london_metal_exchange
+aluminum_price
 
-Incorrect examples:
-bill_driscoll
-red_chief
-western_illinois
-
-Correct examples:
-bill driscoll
-red chief
-western illinois
+Correct:
+london metal exchange
+aluminum price
 
 3. Node IDs must be natural human-readable names written in lowercase with spaces.
 
-Correct examples:
-bill driscoll
-red chief
-henry
-western illinois
-flannel cake
+Examples:
+london metal exchange
+aluminum
+china hongqiao
+alcoa
+shanghai
 
-Incorrect examples:
-bill_driscoll
-character bill
-object hotel
-entity red chief
+4. Node IDs must contain ONLY the entity name.
 
-4. NEVER include prefixes such as:
+Incorrect:
+company alcoa
+exchange lme
 
-character
-object
+Correct:
+alcoa
+london metal exchange
+
+--------------------------------
+ENTITY TYPES
+--------------------------------
+
+Use the following node types:
+
+company
+commodity
+exchange
 location
-entity
+organization
+event
+date
+financial metric
+concept
 
-Incorrect:
-character bill
-object hotel
+Examples:
 
-Correct:
-bill
-hotel
+company:
+alcoa
+rio tinto
+china hongqiao
 
-5. The node id must contain ONLY the entity name.
+commodity:
+aluminum
+copper
+nickel
 
-Correct:
-{{
-"id": "bill driscoll",
-"type": "character"
-}}
+exchange:
+london metal exchange
+shanghai futures exchange
 
-Incorrect:
-{{
-"id": "character bill driscoll",
-"type": "character"
-}}
+location:
+china
+united states
+london
+shanghai
 
---------------------------------
-ENTITY TYPE RULES
---------------------------------
+financial metric:
+aluminum price
+production capacity
+inventory level
 
-Characters in the story must always use type:
-
-character
-
-examples:
-sam
-bill driscoll
-red chief
-henry
-ebenezer dorset
-
-important rule:
-red chief is always a character.
-
-never classify characters as objects.
-
-objects should only be physical items such as:
-
-knife
-horse
-rock
-gun
-food
-tools
-
-locations are places such as:
-
-towns
-states
-buildings
-rooms
-geographical areas
-
-examples:
-alabama
-summit
-western illinois
-cave
+event:
+supply disruption
+production cut
+policy change
 
 --------------------------------
 ENTITY NORMALIZATION RULES
 --------------------------------
 
-normalize names to the most complete natural form.
+Normalize entity names to their most common form.
 
-examples:
+Examples:
 
-bill
-bill driscoll
-→ bill driscoll
+lme
+london metal exchange
+→ london metal exchange
 
-red chief
-redchief
-red chief
-→ red chief
+aluminium
+aluminum
+→ aluminum
 
-henry
-henry
-→ henry
-
-avoid generic entities if a specific name exists.
-
-incorrect:
-kid
-boy
-
-correct:
-red chief
+avoid duplicate entities caused by capitalization differences.
 
 --------------------------------
 RELATIONSHIP RULES
 --------------------------------
 
-only create relationships explicitly described in the text.
+Only create relationships explicitly mentioned in the text.
 
-do not invent relationships.
+Do NOT infer relationships.
 
-incorrect example:
-henry owns red chief
+Examples of valid relationships:
 
-correct examples:
-bill driscoll talks_to henry
-henry talks_to bill driscoll
-
-characters interacting should use:
-
-talks_to
-interacts_with
-
-locations should use:
-
+produces
+trades_on
 located_in
-lives_in
-
-objects should use:
-
-uses
+affects
+announces
+reports
+exports
+imports
+controls
 owns
+related_to
+
+Example relationships:
+
+alcoa produces aluminum
+
+aluminum trades_on london metal exchange
+
+china hongqiao located_in china
+
+aluminum price affects aluminum producers
 
 --------------------------------
 SCHEMA
 --------------------------------
 
-{{
+{
 "nodes": [
 {
 "id": "entity name",
@@ -213,53 +178,38 @@ SCHEMA
 "properties": {}
 }
 ]
-}}
-
---------------------------------
-ALLOWED NODE TYPES
---------------------------------
-
-character
-object
-location
-event
-organization
-animal
-date
-concept
+}
 
 --------------------------------
 ALLOWED RELATIONSHIP TYPES
 --------------------------------
 
-talks_to
-interacts_with
+produces
+trades_on
 located_in
-lives_in
+announces
+affects
+reports
+exports
+imports
 owns
-uses
-travels_to
-participates_in
-causes
-observes
+controls
 related_to
 
--------------------------------------------------------------------
-STRICTLY FOLLOW THE BELOW PYDANTIC OUTPUT STRUCTURE FOR RESPONSE
--------------------------------------------------------------------
+--------------------------------
+STRICT OUTPUT STRUCTURE
+--------------------------------
 
 class Node(BaseModel):
-    id: str = Field(..., description="Unique identifier of the entity")
-    type: str = Field(..., description="Type of the entity")
-    properties: Dict[str, Any] = Field(default_factory=dict)
-
+    id: str
+    type: str
+    properties: Dict[str, Any]
 
 class Relationship(BaseModel):
-    source: str = Field(..., description="Source node id")
-    target: str = Field(..., description="Target node id")
-    type: str = Field(..., description="Relationship type")
-    properties: Dict[str, Any] = Field(default_factory=dict)
-
+    source: str
+    target: str
+    type: str
+    properties: Dict[str, Any]
 
 class GraphResponse(BaseModel):
     nodes: List[Node]
@@ -274,174 +224,49 @@ do not include explanations or additional text.
 """
 
 class UserPrompt:
-    def __init__(self, chunk: str = None, previous_chunks: List[str] = None):
+    def __init__(self, chunk: str = None):
         self.chunk = chunk
-        self.previous_chunks = previous_chunks or []
 
     def get_prompt(self):
 
-        context_section = ""
-        if len(self.previous_chunks) > 0:
-            context_section = f"""
-CONTEXT (previous chunks for background only):
-{self.previous_chunks}
+        return f"""
+====USER PROMPT====
 
-IMPORTANT:
-Use this context ONLY to help understand references such as names, pronouns, or entities.
-DO NOT extract nodes or relationships from the context section.
-"""
+Extract a knowledge graph from the following commodity market news text.
 
-        return f"""====USER PROMPT====
+Focus on entities such as:
 
-Extract a knowledge graph from the following narrative text chunk from a short story.
-
-You must identify entities and relationships ONLY from the CURRENT CHUNK.
-
-Entities may include:
-- characters
+- companies
+- commodities
+- exchanges
 - locations
-- objects
+- organizations
+- financial metrics
 - events
-- concepts
+- dates
 
 Relationships may include:
-- interactions between characters
-- ownership or usage of objects
-- location relationships
-- participation in events
+
+- production
+- trading
+- reporting
+- location
+- supply chain relationships
+- price impact
 
 IMPORTANT RULES:
 
 1. Extract knowledge ONLY from the CURRENT CHUNK.
-2. The CONTEXT section (if provided) is for background understanding only.
-3. DO NOT create nodes or relationships based on the context alone.
-4. Only include facts explicitly stated in the CURRENT CHUNK.
-5. Prefer previously seen entity names from the CONTEXT section when referring to the same entity.
+2. The CONTEXT section is only for background understanding.
+3. Do NOT create nodes or relationships based only on the context.
+4. Only extract facts explicitly mentioned in the CURRENT CHUNK.
 
 --------------------------------
 
 CURRENT CHUNK:
 {self.chunk}
 
-{context_section}
-
 --------------------------------
 
 Return ONLY valid JSON following the schema defined in the system prompt.
-
-Do not include explanations or any text outside the JSON.
-
-STRICTLY FOLLOW THE BELOW PYDANTIC OUTPUT STRUCTURE FOR RESPONSE:
-class Node(BaseModel):
-    id: str = Field(..., description="Unique identifier of the entity")
-    type: str = Field(..., description="Type of the entity")
-    properties: Dict[str, Any] = Field(default_factory=dict)
-
-
-class Relationship(BaseModel):
-    source: str = Field(..., description="Source node id")
-    target: str = Field(..., description="Target node id")
-    type: str = Field(..., description="Relationship type")
-    properties: Dict[str, Any] = Field(default_factory=dict)
-
-
-class GraphResponse(BaseModel):
-    nodes: List[Node]
-    relationships: List[Relationship]
 """
-    
-class SystemPromptFinance:
-    system_prompt = """
-    ====SYSTEM PROMPT====
-    You are an information extraction system designed to build a knowledge graph from financial documents.
-    
-    Your task is to extract structured knowledge in the form of:
-
-    1. Nodes (entities)
-    2. Relationships (edges)
-    3. Properties (attributes)
-
-    Follow these strict rules:
-
-    - Only extract facts that are explicitly mentioned in the text.
-    - Do NOT infer or hallucinate information.
-    - Use concise entity names.
-    - Normalize entity names (e.g., "Apple Inc." not "the company").
-    - If an entity appears multiple times, reuse the same node name.
-    - Do not create duplicate nodes.
-
-    Return ONLY valid JSON.
-
-    Schema:
-
-    {{
-    "nodes": [
-        {
-        "id": "unique_entity_name",
-        "type": "EntityType",
-        "properties": {
-            "property_name": "value"
-        }
-        }
-    ],
-    "relationships": [
-        {
-        "source": "node_id",
-        "target": "node_id",
-        "type": "RELATIONSHIP_TYPE",
-        "properties": {
-            "property_name": "value"
-        }
-        }
-    ]
-    }}
-
-    Allowed Node Types:
-    - Company
-    - Person
-    - FinancialMetric
-    - Product
-    - BusinessSegment
-    - Currency
-    - Location
-    - Date
-    - Regulation
-    - Event
-
-    Allowed Relationship Types:
-    - HAS_REVENUE
-    - HAS_PROFIT
-    - OPERATES_IN
-    - PRODUCES
-    - PART_OF
-    - REPORTED_ON
-    - LOCATED_IN
-    - ACQUIRED
-    - OWNS
-    - INVESTED_IN
-    - RELATED_TO
-
-    Guidelines:
-
-    Financial metrics should include properties such as:
-    - value
-    - currency
-    - period
-
-    Dates should follow ISO format when possible.
-
-    If a number appears (e.g., revenue, profit, growth rate), represent it as a FinancialMetric node."""
-
-class UserPromptFinance:
-    def __init__(self, chunk:str = None):
-        self.chunk = chunk
-    
-    def get_prompt(self):
-        return f""" ====USER PROMPT====
-        Extract a knowledge graph from the following financial report text.
-        
-        CONTEXT CHUNK:
-        {self.chunk}
-
-        Return structured JSON following the schema.
-        Do not include explanations."""

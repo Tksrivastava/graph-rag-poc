@@ -10,13 +10,14 @@ from dotenv import load_dotenv
 from typing import List, Dict, Any
 from pydantic import BaseModel, Field
 from core.logging import LoggerFactory
+from core.utils import DocumentProcess
 from langchain_ollama import ChatOllama
 
 logger = LoggerFactory().get_logger(__name__)
 
 BASE_DIR: Final[Path] = Path(__file__).resolve().parent.parent
 ENV_PATH: Final[Path] = BASE_DIR / ".env.poc"
-CHUNK_SAVE_PATH: Final[Path] = BASE_DIR / "dataset" / "chunks.pkl"
+CHUNK_SAVE_PATH: Final[Path] = BASE_DIR / "dataset" / "chunks.jsonl"
 KG_SAVE_PATH: Final[Path] = BASE_DIR / "dataset" / "extracted-kg.jsonl"
 
 load_dotenv(dotenv_path=ENV_PATH)
@@ -60,7 +61,7 @@ class ServeOllama:
     def get_kg(self, content_chunk: str = None, chunk_id: int = None, previous_chunks: List[str] = None):
         prompt = f"""
                     {SystemPrompt.system_prompt}
-                    {UserPrompt(chunk=content_chunk, previous_chunks=previous_chunks).get_prompt()}"""
+                    {UserPrompt(chunk=content_chunk).get_prompt()}"""
 
         response = self.llm.invoke(prompt)
 
@@ -75,25 +76,17 @@ if __name__ == "__main__":
     logger.info("Initiating Knowledge Graph extraction on chunks")
 
     logger.info("Loading Tesla report chunks")
-    chunks = pickle.load(open(CHUNK_SAVE_PATH, "rb"))
+    chunks = DocumentProcess.load_docs_jsonl(path=CHUNK_SAVE_PATH)
 
     logger.info("Initializing Ollama")
     llm = ServeOllama()
 
     logger.info("Processing chunks sequentially")
 
-    for chunk_id, chunk in tqdm(enumerate(chunks), total=len(chunks)):
+    for chunk_id, doc in tqdm(enumerate(chunks)):
 
         logger.info(f"Processing chunk_id - {chunk_id}")
-
-        prev_chunks = []
-        if chunk_id - 1 >= 0: prev_chunks.append(chunks[chunk_id - 1])
-        if chunk_id - 2 >= 0: prev_chunks.append(chunks[chunk_id - 2])
-        if len(prev_chunks) == 2: logger.info("Two chunks extracted for context")
-        elif len(prev_chunks) == 1: logger.info("Single chunk extracted for context")
-        else: logger.info("No previous chunks for context")
-
-        response = llm.get_kg(chunk_id=chunk_id, content_chunk=chunk, previous_chunks=prev_chunks)
+        response = llm.get_kg(chunk_id=chunk_id, content_chunk=doc)
 
         record = {
             "chunk_id": chunk_id,
