@@ -11,7 +11,7 @@ logger = LoggerFactory().get_logger(__name__)
 
 BASE_DIR: Final[Path] = Path(__file__).resolve().parent.parent
 ENV_PATH: Final[Path] = BASE_DIR / ".env.poc"
-REPORT_PATH: Final[Path] = BASE_DIR / "dataset" / "tesla-report-10k.pdf"
+REPORT_PATH: Final[Path] = BASE_DIR / "dataset" / "henry-short-story.pdf"
 CHUNK_SAVE_PATH: Final[Path] = BASE_DIR / "dataset" / "chunks.pkl"
 
 load_dotenv(dotenv_path=ENV_PATH)
@@ -34,7 +34,7 @@ if __name__ == "__main__":
         chunk_size=int(os.getenv("CHUNK_SIZE")),
         chunk_overlap=int(os.getenv("CHUNK_OVERLAP")),
     )
-    chunks = splitter.split_text(report)
+    chunks = splitter.split_text(report.lower())
     logger.info(f"{len(chunks)} chunks prepared")
 
     logger.info("Saving chunks")
