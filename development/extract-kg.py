@@ -1,7 +1,6 @@
 import os
 import json
-import pickle
-import subprocess
+import time
 from tqdm import tqdm
 from typing import Final
 from pathlib import Path
@@ -23,12 +22,10 @@ KG_SAVE_PATH: Final[Path] = BASE_DIR / "dataset" / "extracted-kg.jsonl"
 load_dotenv(dotenv_path=ENV_PATH)
 logger.info("Environment variables loaded from .env.poc")
 
-
 class Node(BaseModel):
     id: str = Field(..., description="Unique identifier of the entity")
     type: str = Field(..., description="Type of the entity")
     properties: Dict[str, Any] = Field(default_factory=dict)
-
 
 class Relationship(BaseModel):
     source: str = Field(..., description="Source node id")
@@ -36,40 +33,9 @@ class Relationship(BaseModel):
     type: str = Field(..., description="Relationship type")
     properties: Dict[str, Any] = Field(default_factory=dict)
 
-
 class GraphResponse(BaseModel):
     nodes: List[Node]
     relationships: List[Relationship]
-
-
-class ServeOllama:
-    def __init__(self):
-        self._start_ollama_serve()
-
-        self.model = os.getenv("OLLAMA_MODEL_NAME")
-        self.llm = ChatOllama(model=self.model, temperature=0, format="json")
-        logger.info(f"{self.model} Model initialized with JSON output format")
-
-    def _start_ollama_serve(self):
-        logger.info("Starting Ollama serve")
-        self.process = subprocess.Popen(["ollama", "serve"])
-
-    def _kill_ollama_serve(self):
-        self.process.kill()
-        logger.info("Killing Ollama serve")
-
-    def get_kg(self, content_chunk: str = None, chunk_id: int = None, previous_chunks: List[str] = None):
-        prompt = f"""
-                    {SystemPrompt.system_prompt}
-                    {UserPrompt(chunk=content_chunk).get_prompt()}"""
-
-        response = self.llm.invoke(prompt)
-
-        logger.info(f"Response generated for chunk_id={chunk_id}")
-
-        return GraphResponse(
-            **json.loads(response.content if hasattr(response, "content") else response)
-        )
 
 
 if __name__ == "__main__":
@@ -78,25 +44,43 @@ if __name__ == "__main__":
     logger.info("Loading Tesla report chunks")
     chunks = DocumentProcess.load_docs_jsonl(path=CHUNK_SAVE_PATH)
 
-    logger.info("Initializing Ollama")
-    llm = ServeOllama()
+    logger.info("Initializing LMM")
+    model = os.getenv("OLLAMA_MODEL_NAME")
+    llm = ChatOllama(model=model, temperature=0, format="json")
+    logger.info(f"{model} Model initialized with JSON output format")
 
     logger.info("Processing chunks sequentially")
 
-    for chunk_id, doc in tqdm(enumerate(chunks)):
+    for chunk_id, doc in enumerate(tqdm(chunks, total=len(chunks), desc="Processing chunks")):
 
-        logger.info(f"Processing chunk_id - {chunk_id}")
-        response = llm.get_kg(chunk_id=chunk_id, content_chunk=doc)
+        if chunk_id >= 136:
 
-        record = {
-            "chunk_id": chunk_id,
-            "nodes": response.nodes,
-            "relationships": response.relationships,
-        }
+            try:
+                logger.info(f"Processing chunk_id - {chunk_id}")
 
-        with open(KG_SAVE_PATH, "a") as f:
-            f.write(json.dumps(record, default=lambda x: x.model_dump()) + "\n")
+                prompt = f"""
+                        {SystemPrompt.system_prompt}
+                        {UserPrompt(chunk=doc).get_prompt()}"""
+                response = llm.invoke(prompt)
+                logger.info(f"Response generated")
+                
+                response = GraphResponse(**json.loads(response.content if hasattr(response, "content") else response))
+                logger.info("Pydantic parsed")
+
+                time.sleep(5)
+
+                record = {
+                "chunk_id": chunk_id,
+                "nodes": response.nodes,
+                "relationships": response.relationships,
+                }
+
+                with open(KG_SAVE_PATH, "a") as f:
+                    f.write(json.dumps(record, default=lambda x: x.model_dump()) + "\n")
+
+            except Exception as e:
+                logger.info(e)
+        
+        else : pass
 
     logger.info("Knowledge Graph extracted")
-
-    llm._kill_ollama_serve()
