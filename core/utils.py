@@ -1,8 +1,11 @@
 import json
+import neo4j
 from pathlib import Path
-from typing import Final, Iterable, List, Union
 from langchain.schema import Document
+from core.logging import LoggerFactory
+from typing import Final, Iterable, List, Union, Dict
 
+logger = LoggerFactory().get_logger(__name__)
 
 class DocumentProcess:
 
@@ -43,3 +46,28 @@ class DocumentProcess:
                 )
 
         return docs
+
+class Neo4jOps:
+    def __init__(self, driver: neo4j._sync.driver.Neo4jDriver):
+        self.session = driver.session()
+        logger.info("Session created")
+
+    def create_node(self, node: Dict):
+        query = """
+        MERGE (n:Entity {id: $id})
+        SET n.type = $type
+        SET n += $props"""
+        
+        self.session.run(query, id=node["id"], type=node["type"], props=node["properties"])
+        logger.info("Node pushed")
+    
+    def create_relationship(self, relationship: Dict):
+        query = """
+        MATCH (a:Entity {id: $source})
+        MATCH (b:Entity {id: $target})
+        MERGE (a)-[r:%s]->(b)
+        SET r += $props
+        """ % relationship["type"]
+        
+        self.session.run(query, source=relationship["source"], target=relationship["target"], props=relationship["properties"])
+        logger.info("Relationship pushed")
