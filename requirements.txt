@@ -11,3 +11,5 @@ urllib3==1.26.18
 neo4j==6.1.0
 networkx==3.6.1
 pyvis==0.3.2
+pandas-toon==0.1.0
+langchain-groq==0.1.9
