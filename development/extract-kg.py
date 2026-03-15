@@ -53,34 +53,30 @@ if __name__ == "__main__":
 
     for chunk_id, doc in enumerate(tqdm(chunks, total=len(chunks), desc="Processing chunks")):
 
-        if chunk_id >= 136:
+        try:
+            logger.info(f"Processing chunk_id - {chunk_id}")
 
-            try:
-                logger.info(f"Processing chunk_id - {chunk_id}")
+            prompt = f"""
+                    {SystemPrompt.system_prompt}
+                    {UserPrompt(chunk=doc).get_prompt()}"""
+            response = llm.invoke(prompt)
+            logger.info(f"Response generated")
+            
+            response = GraphResponse(**json.loads(response.content if hasattr(response, "content") else response))
+            logger.info("Pydantic parsed")
 
-                prompt = f"""
-                        {SystemPrompt.system_prompt}
-                        {UserPrompt(chunk=doc).get_prompt()}"""
-                response = llm.invoke(prompt)
-                logger.info(f"Response generated")
-                
-                response = GraphResponse(**json.loads(response.content if hasattr(response, "content") else response))
-                logger.info("Pydantic parsed")
+            time.sleep(5)
 
-                time.sleep(5)
+            record = {
+            "chunk_id": chunk_id,
+            "nodes": response.nodes,
+            "relationships": response.relationships,
+            }
 
-                record = {
-                "chunk_id": chunk_id,
-                "nodes": response.nodes,
-                "relationships": response.relationships,
-                }
+            with open(KG_SAVE_PATH, "a") as f:
+                f.write(json.dumps(record, default=lambda x: x.model_dump()) + "\n")
 
-                with open(KG_SAVE_PATH, "a") as f:
-                    f.write(json.dumps(record, default=lambda x: x.model_dump()) + "\n")
-
-            except Exception as e:
-                logger.info(e)
-        
-        else : pass
+        except Exception as e:
+            logger.info(e)
 
     logger.info("Knowledge Graph extracted")
