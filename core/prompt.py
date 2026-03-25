@@ -1,45 +1,64 @@
 from typing import List
-class SystemPrompt:
-    system_prompt = """
-Extract Aluminum Supply Chain KGs. JSON ONLY.
 
-STRICT CONVERSION:
-- "lme" -> "london metal exchange"
-- "aluminium" -> "aluminum"
-- IDs: lowercase
-- Numbers or Numeric Figures (MANDATORY): ALWAYS use {{"value": X, "unit": "Y"}} in properties.
-
-### VOCABULARY:
-- Types: [exchange, financial_metric, commodity, location, event, policy, etc.]
-- Verbs: [reports, trades_on, affects, produces, exports_to, disrupts, etc.]
-"""
-
-class UserPrompt:
+class EntityExtractionPrompt:
     def __init__(self, chunk: str = None):
         self.chunk = chunk
 
     def get_prompt(self):
-        return f"""
-Target: Extract all quantities and prices from the text.
+        return f"""Extract entities ONLY from the given context.
+        
+        Context:
+        {self.chunk}
+        
+        STRICT RULES (ALL MUST BE FOLLOWED):
 
-IDENTITIES:
-- Use "aluminum price" for price values.
-- Use "aluminum stocks" for inventory values.
-- Use "london metal exchange" for LME.
+        1. Extract ONLY meaningful domain entities relevant to the aluminium/LME industry
+        (e.g., commodities, financial indicators, inventory indicators, organizations, markets).
 
-TEXT:
-{self.chunk}
+        2. The following MUST NEVER be entities:
+            - dates
+            - numbers
+            - percentages
+            - quantities
+            - identifiers
+            - currency codes
+            - URLs
 
-JSON STRUCTURE:
-{{
-  "nodes": [
-    {{"id": "aluminum_price", "type": "financial_metric", "properties": {{"value": 0.0, "unit": "usd/t"}}}}
-  ],
-  "relationships": [
-    {{"source": "london metal exchange", "target": "aluminum price", "type": "reports"}}
-  ]
-}}
-"""
+        3. Dates, numbers, percentages, and quantities MUST appear ONLY as properties of a related entity.
+
+        4. Every entity MUST:
+            - exist exactly as written in the context
+            - contain at least one property
+            - appear ONLY once in the output (no duplicates)
+
+        5. Entity types MUST be domain-specific and meaningful.
+        Examples:
+            - Financial Indicator
+            - Commodity Price Indicator
+            - Inventory Indicator
+            - Organization
+            - Market
+
+        6. If a token is a date, number, percentage, identifier, or currency code,
+        it MUST be used ONLY as a property and NEVER as an entity.
+
+        7. Output MUST follow EXACT formatting.
+            Required Format: "**Entity Name:** <name> - **Entity Type:** <type> - **Entity Properties:** [prop1, prop2]"
+            Example: "**Entity Name:** LME Aluminum Cash - **Entity Type:** Financial Indicator - **Entity Properties:** [Cash Price $2,985.5/t, Date 2026-01-05]"
+        
+        8. Think step-by-step internally before producing the final JSON output.
+        
+        9.  Before producing the final answer, verify:
+            - No entity is a date, number, percentage, identifier, or currency.
+            - No duplicate entities exist.
+            - Every entity has at least one property.
+            - Entity properties should not be empty.
+            - If multiple numeric values refer to the same entity, they must be aggregated into the properties of a single entity.
+        
+        10. Output JSON format:
+            class ExtractEntity(BaseModel):
+                entities: List[str] = Field(..., description="Unique entities identified based on the input context")
+        """
     
 class CypherPrompt:
     def __init__(self, node_info: str, relationship_info: str, sample_props: str):
